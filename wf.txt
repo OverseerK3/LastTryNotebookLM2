@@ -1,0 +1,13 @@
+End-to-end workflow
+User uploads a PDF from the Upload screen.
+Server:
+Uploads the PDF to LlamaParse, waits for parsing to complete, retrieves markdown/text.
+Splits into text chunks and stores them in ChromaDB with metadata (filename, page, section, ids).
+Frontend switches to the “View & Chat” screen and shows:
+PDF viewer (serving the static file saved under /uploads/).
+Chat interface for asking questions.
+When the user asks a question:
+Server queries ChromaDB for top-N similar chunks.
+Those chunks are concatenated into context and sent to Gemini.
+The model’s response is returned, with page citations (based on response text and chunk metadata).
+The UI shows the answer and “Page X” buttons that jump the PDF viewer to that page.
