@@ -20,9 +20,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware - stuff that runs before our routes
+// Allow CORS from any origin (works for all frontends!)
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173', // Allow requests from React app
-  credentials: true
+  origin: '*', // Allow ALL origins
+  credentials: false // Must be false when origin is '*'
 }));
 app.use(express.json()); // Parse JSON requests
 
