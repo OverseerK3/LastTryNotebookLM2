@@ -50,7 +50,7 @@ const UploadScreen = ({ onUploadSuccess }) => {
           </p>
         </div>
 
-        {/* Upload Area */}
+        {/* ------------- upload ------------  */}
         <div
           {...getRootProps()}
           className={`
@@ -79,7 +79,6 @@ const UploadScreen = ({ onUploadSuccess }) => {
                 </p>
               </>
             ) : (
-              /* Default State */
               <>
                 <div className="text-6xl md:text-7xl mb-3 opacity-90">📄</div>
                 <h3 className="text-lg md:text-xl font-medium text-white">
@@ -96,14 +95,14 @@ const UploadScreen = ({ onUploadSuccess }) => {
           </div>
         </div>
 
-        {/* Error Message */}
+        {/* --------- error -------------- */}
         {uploadError && (
           <div className="bg-red-900/40 border border-red-600/40 text-red-300 text-sm rounded-lg p-4 mt-6 backdrop-blur-sm">
             {uploadError}
           </div>
         )}
 
-        {/* Info */}
+        {/* --------- info --------------- */}
         <div className="flex flex-wrap justify-center gap-6 mt-10 text-blue-300/60 text-sm">
           <div className="flex items-center gap-2">
             <span>LlamaParse & ChromaDB & Gemini AI </span>

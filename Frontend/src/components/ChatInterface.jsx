@@ -38,9 +38,8 @@ const ChatInterface = ({ onCitationClick }) => {
     } catch (error) {
       const errorMessage = {
         type: 'ai',
-        content: `⚠️ Sorry, I encountered an error: ${
-          error.response?.data?.error || 'Please try again.'
-        }`,
+        content: `⚠️ Sorry, I encountered an error: ${error.response?.data?.error || 'Please try again.'
+          }`,
         citations: [],
         timestamp: new Date(),
       };
@@ -51,7 +50,6 @@ const ChatInterface = ({ onCitationClick }) => {
     }
   };
 
-  // Handle Enter key press
   const handleKeyPress = e => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -61,15 +59,15 @@ const ChatInterface = ({ onCitationClick }) => {
 
   return (
     <div className="h-full flex flex-col bg-black">
-      {/* Chat Header */}
+      {/* --------------- chat head ----------------------- */}
       <div className="p-5 px-6 border-b border-blue-900/30 bg-black/80 backdrop-blur">
         <h3 className="text-lg font-semibold text-white">💬 Chat with your document</h3>
         <p className="text-blue-400/60 text-sm mt-1">
-          Ask questions and explore insights
+          Ask questions....
         </p>
       </div>
 
-      {/* Messages Area */}
+      {/* ----------------- msg area --------------------- */}
       <div className="flex-1 overflow-y-auto">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center p-10 text-center">
@@ -94,22 +92,20 @@ const ChatInterface = ({ onCitationClick }) => {
             {messages.map((message, index) => (
               <div
                 key={index}
-                className={`flex w-full ${
-                  message.type === 'user' ? 'justify-end' : 'justify-start'
-                }`}
+                className={`flex w-full ${message.type === 'user' ? 'justify-end' : 'justify-start'
+                  }`}
               >
                 <div
-                  className={`max-w-[80%] p-3 px-4 rounded-2xl text-sm leading-relaxed ${
-                    message.type === 'user'
+                  className={`max-w-[80%] p-3 px-4 rounded-2xl text-sm leading-relaxed ${message.type === 'user'
                       ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-md shadow-blue-500/20'
                       : 'bg-black/70 text-blue-100 border border-blue-800/20'
-                  }`}
+                    }`}
                 >
                   <div className="whitespace-pre-wrap break-words">
                     {message.content}
                   </div>
 
-                  {/* Citations */}
+                  {/* ------------- page citations here ------------------ */}
                   {message.citations && message.citations.length > 0 && (
                     <div className="mt-3 pt-2 border-t border-blue-800/20 flex flex-wrap gap-2 items-center">
                       {message.citations.map((page, idx) => (
@@ -123,20 +119,11 @@ const ChatInterface = ({ onCitationClick }) => {
                       ))}
                     </div>
                   )}
-
-                  {/* Token usage */}
-                  {/* {message.tokensUsed && (
-                    <div className="mt-2 pt-2 border-t border-blue-800/20">
-                      <span className="text-blue-300/50 text-xs">
-                        ⚡ {message.tokensUsed} tokens used
-                      </span>
-                    </div>
-                  )} */}
                 </div>
               </div>
             ))}
 
-            {/* Loading Message */}
+            {/* ---------- load message ------------- */}
             {isLoading && (
               <div className="flex justify-start">
                 <div className="max-w-[80%] p-3 px-4 rounded-2xl text-sm leading-relaxed bg-black/70 text-blue-200 border border-blue-800/20">
@@ -151,7 +138,7 @@ const ChatInterface = ({ onCitationClick }) => {
         )}
       </div>
 
-      {/* Input Area */}
+      {/* ------------ input area ---------------- */}
       <div className="p-5 px-6 border-t border-blue-900/30 bg-black/90 backdrop-blur">
         <div className="flex gap-3 items-end">
           <textarea
@@ -171,7 +158,7 @@ const ChatInterface = ({ onCitationClick }) => {
             {isLoading ? (
               <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full"></div>
             ) : (
-              '→'
+              Send
             )}
           </button>
         </div>

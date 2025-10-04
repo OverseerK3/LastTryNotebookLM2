@@ -17,50 +17,44 @@ export class VectorStore {
   // Initialize ChromaDB connection
   async initialize() {
     try {
-      console.log('📚 Connecting to ChromaDB...');
+      console.log('Connecting to ChromaDB...');
       this.collection = await getCollection;
-      console.log('✅ ChromaDB ready');
+      console.log('ChromaDB ready');
       return true;
     } catch (error) {
-      console.error('❌ ChromaDB connection failed:', error.message);
+      console.error('ChromaDB connection failed:', error.message);
       throw new Error(`ChromaDB setup failed: ${error.message}`);
     }
   }
 
-  // Store document chunks in ChromaDB - ENHANCED with content type metadata
-  async storeDocuments(chunks, filename) {
+  async storeDocuments(chunks, filename) {                       // store doc chunks in db with content type metadata
     try {
       if (!this.collection) await this.initialize();
       
-      console.log(`💾 Storing ${chunks.length} chunks from "${filename}"`);
-      
-      // Count special content types
+      console.log(`Storing ${chunks.length} chunks from "${filename}"`);
+
       const tables = chunks.filter(c => c.metadata.has_table).length;
       const images = chunks.filter(c => c.metadata.has_image).length;
-      console.log(`   📊 Tables: ${tables}, 🖼️  Images: ${images}`);
+      console.log(`Tables: ${tables}, Images: ${images}`);
       
-      // Prepare data for ChromaDB with enhanced metadata
-      const documents = chunks.map(chunk => chunk.text);
+      const documents = chunks.map(chunk => chunk.text);         // Prepare data for ChromaDB with metadata
       const metadatas = chunks.map((chunk, index) => ({
         page: chunk.metadata.page_number,
         filename: filename,
         chunk_id: `${filename}_${index}`,
         section: chunk.metadata.section,
-        content_type: chunk.metadata.content_type || 'text',  // NEW
-        has_table: chunk.metadata.has_table || false,         // NEW
-        has_image: chunk.metadata.has_image || false,         // NEW
+        content_type: chunk.metadata.content_type || 'text', 
+        has_table: chunk.metadata.has_table || false,        
+        has_image: chunk.metadata.has_image || false,        
         created_at: new Date().toISOString()
       }));
       const ids = chunks.map((_, index) => `${filename}_${Date.now()}_${index}`);
-
-      // Store in ChromaDB
       await this.collection.add({
         documents: documents,
         metadatas: metadatas,
         ids: ids
       });
-
-      console.log(`✅ Stored ${chunks.length} chunks successfully`);
+      console.log(`Stored ${chunks.length} chunks successfully`);
       
       return {
         success: true,
@@ -71,13 +65,12 @@ export class VectorStore {
       };
 
     } catch (error) {
-      console.error('❌ Failed to store documents:', error.message);
+      console.error('Failed to store documents:', error.message);
       throw new Error(`Storage failed: ${error.message}`);
     }
   }
 
-  // Search for relevant chunks - ENHANCED with content type logging
-  async searchRelevant(question, limit = 5) {
+  async searchRelevant(question, limit = 5) {                    // Search for relevant chunks with content type logging
     try {
       if (!this.collection) await this.initialize();
       
@@ -88,7 +81,6 @@ export class VectorStore {
         nResults: limit
       });
 
-      // Format results
       const formattedResults = [];
       
       if (results.documents && results.documents[0]) {
@@ -111,13 +103,12 @@ export class VectorStore {
       return formattedResults;
 
     } catch (error) {
-      console.error('❌ Search failed:', error.message);
+      console.error(' Search failed:', error.message);
       throw new Error(`Search failed: ${error.message}`);
     }
   }
 
-  // Get collection info for debugging
-  async getCollectionInfo() {
+  async getCollectionInfo() {                                     // get collection info
     try {
       if (!this.collection) await this.initialize();
       
@@ -137,7 +128,6 @@ export class VectorStore {
     }
   }
 
-  // Check if configured
   isConfigured() {
     return !!(this.apiKey && this.tenant && this.database);
   }

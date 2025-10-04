@@ -11,45 +11,33 @@ export class LlamaParseAPI {
       throw new Error('LLAMA_PARSE_API_KEY is required in .env file');
     }
     
-    console.log('🦙 LlamaParse initialized');
+    console.log('LlamaParse initialized');
   }
 
-  // Simple, effective PDF parsing - all-in-one method
   async parseDocument(filePath) {
     try {
-      console.log('🚀 Parsing PDF with LlamaParse...');
-      
-      // Upload and get job ID
+      console.log('Parsing PDF with LlamaParse...');
       const jobId = await this.upload(filePath);
-      
-      // Wait for completion and get results
-      const content = await this.waitAndGetResult(jobId);
-      
-      // Convert to chunks for vector storage
-      const chunks = this.createChunks(content);
-      
-      console.log(`✅ Success: ${chunks.length} chunks created`);
+      const content = await this.waitAndGetResult(jobId);     // waits after get res
+      const chunks = this.createChunks(content);              // chunk conversion
+      console.log(`Success: ${chunks.length} chunks created`);
       return chunks;
-      
     } catch (error) {
-      console.error('❌ LlamaParse error:', error.message);
+      console.error('LlamaParse error:', error.message);
       throw new Error(`PDF parsing failed: ${error.message}`);
     }
   }
 
-  // Upload PDF file
-  async upload(filePath) {
+  async upload(filePath) {                                    // upload doc
     const formData = new FormData();
     formData.append('file', fs.createReadStream(filePath));
-    
-    // Enhanced parsing instructions for better table & image handling
+
     formData.append('parsing_instruction', 
       'Extract all text, tables, and describe any images or charts. ' +
       'Preserve table structure in markdown format. ' +
       'For images, provide detailed descriptions of visual content.'
     );
-    
-    
+
     const response = await axios.post(`${this.baseURL}/upload`, formData, {
       headers: {
         'Authorization': `Bearer ${this.apiKey}`,
@@ -57,39 +45,31 @@ export class LlamaParseAPI {
       }
     });
 
-    console.log(`📤 Uploaded, Job ID: ${response.data.id}`);
+    console.log(`Uploaded with job id: ${response.data.id}`);
     return response.data.id;
   }
-
-  // Wait for processing and get results
-  async waitAndGetResult(jobId) {
+ 
+  async waitAndGetResult(jobId) {                                       // wait untill procession res
     const maxAttempts = 30;
-    const waitTime = 10000; // 10 seconds
-
+    const waitTime = 10000; // 1*10 sec
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        // Check status
         const statusResponse = await axios.get(`${this.baseURL}/job/${jobId}`, {
           headers: { 'Authorization': `Bearer ${this.apiKey}` }
         });
-
         const { status } = statusResponse.data;
-        console.log(`🔄 Attempt ${attempt}: ${status}`);
+        console.log(`Attempt ${attempt}: ${status}`);
 
-        if (status === 'SUCCESS') {
-          // Get JSON result with page information
+        if (status === 'SUCCESS') {                                   // res with json
           const jsonResponse = await axios.get(`${this.baseURL}/job/${jobId}/result/json`, {
             headers: { 'Authorization': `Bearer ${this.apiKey}` }
           });
+          console.log('LlamaParse response type:', typeof jsonResponse.data);
           
-          console.log('📊 LlamaParse response type:', typeof jsonResponse.data);
-          
-          // Also get markdown for easier text processing
           const markdownResponse = await axios.get(`${this.baseURL}/job/${jobId}/result/markdown`, {
             headers: { 'Authorization': `Bearer ${this.apiKey}` }
           });
-          
-          // Return both - we'll use JSON for page numbers, markdown for text
+    
           return {
             json: jsonResponse.data,
             markdown: markdownResponse.data
@@ -100,8 +80,7 @@ export class LlamaParseAPI {
           throw new Error('LlamaParse processing failed');
         }
 
-        // Still processing, wait
-        if (attempt < maxAttempts) {
+        if (attempt < maxAttempts) {                                // if still processing wait
           await this.sleep(waitTime);
         }
 
@@ -114,37 +93,30 @@ export class LlamaParseAPI {
     throw new Error('PDF processing timeout');
   }
 
-  // Create chunks from parsed content - ENHANCED for tables and images
-  createChunks(content) {
-    console.log('🔧 Processing content...');
-    
-    // Extract markdown text and page info from JSON
+  createChunks(content) {                                                 // func for chunk creation
+    console.log('🔧 Processing content...'); 
     let textContent = '';
-    let pageMapping = new Map(); // Map text positions to page numbers
+    let pageMapping = new Map(); 
     
-    // Handle the response format (now contains json and markdown)
-    if (content.markdown && content.json) {
+    if (content.markdown && content.json) {                             // handle the res format
       textContent = typeof content.markdown === 'string' ? content.markdown : content.markdown.markdown || '';
-      
-      // Extract page information from JSON
-      if (content.json.pages) {
-        let currentPosition = 0;
+ 
+      if (content.json.pages) {                                         // extract page info from JSON 
+        let currentPosition = 0; 
         content.json.pages.forEach(page => {
           const pageNumber = page.page || page.page_number || 1;
           const pageText = page.text || page.md || '';
           const pageLength = pageText.length;
           
-          // Map text range to page number
-          for (let i = 0; i < pageLength; i++) {
+          for (let i = 0; i < pageLength; i++) {                        // Map text range to page number
             pageMapping.set(currentPosition + i, pageNumber);
           }
           currentPosition += pageLength;
         });
-        
-        console.log(`📄 Extracted page mapping for ${content.json.pages.length} pages`);
+        console.log(`Extracted page mapping for ${content.json.pages.length} pages`);
       }
     }
-    // Fallback to old format
+
     else if (typeof content === 'string') {
       textContent = content;
     } else if (content && typeof content === 'object') {
@@ -156,15 +128,12 @@ export class LlamaParseAPI {
         textContent = content.content;
       }
     }
-    
     if (!textContent || textContent.trim().length === 0) {
       throw new Error('No text content found in LlamaParse response');
     }
-    
-    console.log('📄 Extracted text length:', textContent.length);
+    console.log('Extracted text length:', textContent.length);
 
-    // SMART CHUNKING: Preserve tables and images integrity
-    const chunks = [];
+    const chunks = [];                                                      // if table or img, it is gen by ai
     const sections = this.smartSplit(textContent);
     
     let currentChunk = '';
@@ -174,14 +143,11 @@ export class LlamaParseAPI {
     for (const section of sections) {
       const sectionInfo = this.analyzeSection(section);
       
-      // Find page number for this section
-      const sectionStartPos = textContent.indexOf(section, textPosition);
+      const sectionStartPos = textContent.indexOf(section, textPosition);        // Find page number for this section
       const sectionMidPos = sectionStartPos + Math.floor(section.length / 2);
       const pageNumber = pageMapping.get(sectionMidPos) || Math.floor(chunkIndex / 3) + 1;
       
-      // If this is a table or image, keep it together (don't split)
-      if (sectionInfo.hasTable || sectionInfo.hasImage) {
-        // Save current chunk if exists
+      if (sectionInfo.hasTable || sectionInfo.hasImage) {                        // If this is a table + image,
         if (currentChunk.trim().length > 0) {
           const chunkStartPos = textContent.indexOf(currentChunk, textPosition - currentChunk.length);
           const chunkMidPos = chunkStartPos + Math.floor(currentChunk.length / 2);
@@ -191,12 +157,10 @@ export class LlamaParseAPI {
           currentChunk = '';
         }
         
-        // Add table/image as its own chunk
-        chunks.push(this.createChunkObject(section, chunkIndex, sectionInfo, pageNumber));
+        chunks.push(this.createChunkObject(section, chunkIndex, sectionInfo, pageNumber));      // push its own chunk ( img + table )
         chunkIndex++;
       } 
-      // Regular text - use smart chunking
-      else {
+      else {                                                                                    // text chunk
         if (currentChunk.length + section.length > 1000 && currentChunk.length > 0) {
           const chunkStartPos = textContent.indexOf(currentChunk, textPosition - currentChunk.length);
           const chunkMidPos = chunkStartPos + Math.floor(currentChunk.length / 2);
@@ -208,19 +172,16 @@ export class LlamaParseAPI {
           currentChunk += (currentChunk ? '\n\n' : '') + section;
         }
       }
-      
       textPosition = sectionStartPos + section.length;
     }
 
-    // Add remaining chunk
     if (currentChunk.trim()) {
       const chunkStartPos = textContent.indexOf(currentChunk, textPosition - currentChunk.length);
       const chunkMidPos = chunkStartPos + Math.floor(currentChunk.length / 2);
       const chunkPage = pageMapping.get(chunkMidPos) || Math.floor(chunkIndex / 3) + 1;
       chunks.push(this.createChunkObject(currentChunk, chunkIndex, null, chunkPage));
     }
-
-    console.log(`📊 Created ${chunks.length} chunks (tables/images preserved)`);
+    console.log(`Created ${chunks.length} chunks (tables/images preserved)`);
     return chunks;
   }
 
@@ -315,7 +276,7 @@ export class LlamaParseAPI {
     return {
       text: text.trim(),
       metadata: {
-        page_number: actualPage,      // ✅ REAL page number from LlamaParse!
+        page_number: actualPage,      // REAL page number from LlamaParse!
         chunk_index: index,
         section: `Section ${index + 1}`,
         chunk_id: `chunk_${Date.now()}_${index}`,

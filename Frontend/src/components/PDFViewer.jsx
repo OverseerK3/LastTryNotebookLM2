@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 
-// Set up PDF.js worker with proper module path
+// ------------ set up of pdf.js worker ------------------
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url
@@ -12,9 +12,8 @@ const PDFViewer = ({ file, currentPage, onPageChange }) => {
   const [pageNumber, setPageNumber] = useState(1);
   const [error, setError] = useState(null);
 
-  // Debug the file prop
   useEffect(() => {
-    console.log("📄 PDFViewer received file:", file);
+    console.log("PDFViewer received file:", file);
     if (!file) {
       setError("No file provided");
     } else {
@@ -22,7 +21,7 @@ const PDFViewer = ({ file, currentPage, onPageChange }) => {
     }
   }, [file]);
 
-  // Sync with parent page state
+  // ------------ sync with parent page ---------
   useEffect(() => {
     if (currentPage && currentPage !== pageNumber) {
       setPageNumber(currentPage);
@@ -33,15 +32,14 @@ const PDFViewer = ({ file, currentPage, onPageChange }) => {
     setNumPages(numPages);
     setPageNumber(1);
     setError(null);
-    console.log(`📄 PDF loaded: ${numPages} pages`);
+    console.log(`PDF loaded: ${numPages} pages`);
   }
-
   function onLoadError(error) {
     setError(error?.message || "Failed to load PDF");
-    console.error("❌ PDF load error:", error);
+    console.error("PDF load error:", error);
   }
 
-  // Navigation functions
+  // --------------- navigation functions ----------------
   const goToPreviousPage = () => {
     const newPage = Math.max(1, pageNumber - 1);
     setPageNumber(newPage);
@@ -86,7 +84,7 @@ const PDFViewer = ({ file, currentPage, onPageChange }) => {
             </div>
           </div>
 
-          {/* PDF Content */}
+          {/* ------------ Content ----------------- */}
           <div className="flex-1 overflow-auto flex justify-center items-start p-6 bg-black">
             <Document
               file={file}

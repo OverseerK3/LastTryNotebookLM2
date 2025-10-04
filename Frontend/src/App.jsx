@@ -4,12 +4,11 @@ import ViewAndChatScreen from './components/ViewAndChatScreen';
 import './App.css';
 
 function App() {
-  // State to track which screen to show
   const [currentScreen, setCurrentScreen] = useState('upload'); // 'upload' or 'chat'
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadResponse, setUploadResponse] = useState(null);
 
-  // Handle successful PDF upload
+  // --------- Handle successful PDF upload --------------
   const handleUploadSuccess = (file, response) => {
     console.log('📄 Upload successful:', response);
     setUploadedFile(file);
@@ -17,7 +16,7 @@ function App() {
     setCurrentScreen('chat'); // Switch to chat screen
   };
 
-  // Handle back to upload
+  // ------------- Handle back to upload ------------------
   const handleBackToUpload = () => {
     setCurrentScreen('upload');
     setUploadedFile(null);
