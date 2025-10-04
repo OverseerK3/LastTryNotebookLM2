@@ -10,7 +10,7 @@ export class ChatService {
     console.log('🤖 Gemini AI initialized');
   }
 
-  // Generate AI response with document context
+  // Generate AI response with document context - ENHANCED for tables and images
   async generateResponse(question, relevantChunks) {
     try {
       if (!relevantChunks || relevantChunks.length === 0) {
@@ -25,13 +25,27 @@ export class ChatService {
       console.log(`🤖 Generating response for: "${question}"`);
       console.log(`📚 Using ${relevantChunks.length} chunks`);
 
-      // Build context from chunks
-      const context = relevantChunks
-        .map(chunk => `[Page ${chunk.metadata.page}]: ${chunk.text}`)
-        .join('\n\n');
+      // Analyze what types of content we have
+      const hasTableData = relevantChunks.some(c => c.metadata.has_table);
+      const hasImageData = relevantChunks.some(c => c.metadata.has_image);
+      
+      if (hasTableData) console.log('📊 Context includes table data');
+      if (hasImageData) console.log('🖼️  Context includes image descriptions');
 
-      // Simple, effective prompt
-      const prompt = `Answer this question based on the PDF content provided:
+      // Build context with content type indicators
+      const context = relevantChunks
+        .map(chunk => {
+          let prefix = `[Page ${chunk.metadata.page}`;
+          if (chunk.metadata.has_table) prefix += ' - TABLE DATA';
+          if (chunk.metadata.has_image) prefix += ' - IMAGE/VISUAL';
+          prefix += ']: ';
+          
+          return prefix + chunk.text;
+        })
+        .join('\n\n---\n\n');
+
+      // Enhanced prompt that tells Gemini how to handle structured content
+      const prompt = `You are analyzing content from a PDF document. The content may include regular text, markdown tables, and image/chart descriptions.
 
 DOCUMENT CONTENT:
 ${context}
@@ -39,10 +53,15 @@ ${context}
 QUESTION: ${question}
 
 INSTRUCTIONS:
-- Answer clearly and directly
-- When referencing information, mention the page number
-- Only use information from the provided content
-- If you can't answer fully, explain what's missing
+- Answer clearly and directly based ONLY on the provided content
+- When you see "TABLE DATA", interpret it as structured data in markdown table format
+- When you see "IMAGE/VISUAL", treat it as a description of visual content (charts, diagrams, images)
+- For table data: analyze rows and columns, provide insights about the data
+- For images: reference the visual descriptions provided
+- Always mention the page number when citing information
+- If the content includes tables, you can summarize or extract specific values
+- If the content includes image descriptions, explain what the visual shows
+- If you cannot fully answer, explain what information is missing
 
 ANSWER:`;
 
@@ -60,7 +79,9 @@ ANSWER:`;
         answer: response,
         citations: citedPages,
         tokensUsed: tokensUsed,
-        sourcesUsed: relevantChunks.length
+        sourcesUsed: relevantChunks.length,
+        containedTables: hasTableData,
+        containedImages: hasImageData
       };
 
     } catch (error) {
@@ -69,25 +90,22 @@ ANSWER:`;
     }
   }
 
-  // Find which pages were referenced in the response
+  // Find which pages were used in the answer - SIMPLIFIED and ACCURATE
   findCitedPages(response, chunks) {
+    // Simply return the actual pages from chunks that were used
+    // These are the REAL pages where the answer came from
     const citations = new Set();
     
-    // Look for page references in the response
-    const pageMatches = response.match(/page\s+(\d+)/gi) || [];
-    pageMatches.forEach(match => {
-      const pageNum = parseInt(match.match(/\d+/)[0]);
-      citations.add(pageNum);
-    });
-
-    // Also include pages from chunks that were used
     chunks.forEach(chunk => {
       if (chunk.metadata && chunk.metadata.page) {
         citations.add(chunk.metadata.page);
       }
     });
 
-    return Array.from(citations).sort((a, b) => a - b);
+    const citedPages = Array.from(citations).sort((a, b) => a - b);
+    console.log(`📄 Citations from pages: ${citedPages.join(', ')}`);
+    
+    return citedPages;
   }
 
   // Check if service is configured

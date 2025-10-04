@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 
 const UploadScreen = ({ onUploadSuccess }) => {
   const [isUploading, setIsUploading] = useState(false);
@@ -14,7 +15,7 @@ const UploadScreen = ({ onUploadSuccess }) => {
     formData.append('pdf', file);
 
     try {
-      const response = await axios.post('http://localhost:3000/api/upload-pdf', formData, {
+      const response = await axios.post(`${API_BASE_URL}/api/upload-pdf`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       onUploadSuccess(file, response.data);

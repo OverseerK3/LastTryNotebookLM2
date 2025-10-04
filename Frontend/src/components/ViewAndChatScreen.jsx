@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import ChatInterface from './ChatInterface';
 import PDFViewer from './PDFViewer';
+import { API_BASE_URL } from '../config/api';
 
 const ViewAndChatScreen = ({ uploadedFile, uploadResponse, onBackToUpload }) => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -9,7 +10,7 @@ const ViewAndChatScreen = ({ uploadedFile, uploadResponse, onBackToUpload }) => 
     setCurrentPage(pageNumber);
   };
 
-  const pdfUrl = uploadResponse?.fileUrl ? `http://localhost:3000${uploadResponse.fileUrl}` : null;
+  const pdfUrl = uploadResponse?.fileUrl ? `${API_BASE_URL}${uploadResponse.fileUrl}` : null;
 
   return (
     <div className="w-full h-screen flex flex-col bg-black text-white">

@@ -21,7 +21,8 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware - stuff that runs before our routes
 app.use(cors({
-  origin: 'http://localhost:5173' // Allow requests from React app
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173', // Allow requests from React app
+  credentials: true
 }));
 app.use(express.json()); // Parse JSON requests
 
@@ -63,6 +64,32 @@ app.get('/api/database-status', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to get database status: ' + error.message 
     });
+  }
+});
+
+// NEW: Debug endpoint to inspect stored chunks
+app.get('/api/debug/chunks', async (req, res) => {
+  try {
+    const collection = await vectorStore.collection || await vectorStore.initialize();
+    const count = await collection.count();
+    
+    // Get a sample of chunks to inspect
+    const sample = await collection.get({
+      limit: 10,
+      include: ['documents', 'metadatas']
+    });
+    
+    res.json({
+      success: true,
+      total_chunks: count,
+      sample_chunks: sample.ids.map((id, i) => ({
+        id: id,
+        preview: sample.documents[i].substring(0, 200) + '...',
+        metadata: sample.metadatas[i]
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

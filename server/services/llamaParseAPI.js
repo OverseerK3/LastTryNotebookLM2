@@ -42,6 +42,14 @@ export class LlamaParseAPI {
     const formData = new FormData();
     formData.append('file', fs.createReadStream(filePath));
     
+    // Enhanced parsing instructions for better table & image handling
+    formData.append('parsing_instruction', 
+      'Extract all text, tables, and describe any images or charts. ' +
+      'Preserve table structure in markdown format. ' +
+      'For images, provide detailed descriptions of visual content.'
+    );
+    
+    
     const response = await axios.post(`${this.baseURL}/upload`, formData, {
       headers: {
         'Authorization': `Bearer ${this.apiKey}`,
@@ -69,15 +77,23 @@ export class LlamaParseAPI {
         console.log(`🔄 Attempt ${attempt}: ${status}`);
 
         if (status === 'SUCCESS') {
-          // Get markdown result (easiest format to work with)
-          const resultResponse = await axios.get(`${this.baseURL}/job/${jobId}/result/markdown`, {
+          // Get JSON result with page information
+          const jsonResponse = await axios.get(`${this.baseURL}/job/${jobId}/result/json`, {
             headers: { 'Authorization': `Bearer ${this.apiKey}` }
           });
           
-          console.log('📊 LlamaParse response type:', typeof resultResponse.data);
-          console.log('📊 LlamaParse response keys:', Object.keys(resultResponse.data || {}));
+          console.log('📊 LlamaParse response type:', typeof jsonResponse.data);
           
-          return resultResponse.data;
+          // Also get markdown for easier text processing
+          const markdownResponse = await axios.get(`${this.baseURL}/job/${jobId}/result/markdown`, {
+            headers: { 'Authorization': `Bearer ${this.apiKey}` }
+          });
+          
+          // Return both - we'll use JSON for page numbers, markdown for text
+          return {
+            json: jsonResponse.data,
+            markdown: markdownResponse.data
+          };
         }
 
         if (status === 'ERROR') {
@@ -98,45 +114,47 @@ export class LlamaParseAPI {
     throw new Error('PDF processing timeout');
   }
 
-  // Create chunks from parsed content
+  // Create chunks from parsed content - ENHANCED for tables and images
   createChunks(content) {
-    console.log('🔧 Processing content type:', typeof content);
+    console.log('🔧 Processing content...');
     
+    // Extract markdown text and page info from JSON
     let textContent = '';
+    let pageMapping = new Map(); // Map text positions to page numbers
     
-    // Handle different response formats from LlamaParse
-    if (typeof content === 'string') {
+    // Handle the response format (now contains json and markdown)
+    if (content.markdown && content.json) {
+      textContent = typeof content.markdown === 'string' ? content.markdown : content.markdown.markdown || '';
+      
+      // Extract page information from JSON
+      if (content.json.pages) {
+        let currentPosition = 0;
+        content.json.pages.forEach(page => {
+          const pageNumber = page.page || page.page_number || 1;
+          const pageText = page.text || page.md || '';
+          const pageLength = pageText.length;
+          
+          // Map text range to page number
+          for (let i = 0; i < pageLength; i++) {
+            pageMapping.set(currentPosition + i, pageNumber);
+          }
+          currentPosition += pageLength;
+        });
+        
+        console.log(`📄 Extracted page mapping for ${content.json.pages.length} pages`);
+      }
+    }
+    // Fallback to old format
+    else if (typeof content === 'string') {
       textContent = content;
     } else if (content && typeof content === 'object') {
-      // Try common property names for text content
       if (content.markdown) {
         textContent = content.markdown;
       } else if (content.text) {
         textContent = content.text;
       } else if (content.content) {
         textContent = content.content;
-      } else if (Array.isArray(content) && content.length > 0) {
-        // If it's an array, join the text parts
-        textContent = content.map(item => {
-          if (typeof item === 'string') return item;
-          if (item && item.text) return item.text;
-          if (item && item.content) return item.content;
-          return '';
-        }).join('\n\n');
-      } else {
-        // Try to extract any string values from the object
-        const stringValues = Object.values(content).filter(val => 
-          typeof val === 'string' && val.length > 10
-        );
-        if (stringValues.length > 0) {
-          textContent = stringValues.join('\n\n');
-        } else {
-          console.error('❌ Could not extract text from LlamaParse response:', content);
-          throw new Error('Could not extract text content from LlamaParse response');
-        }
       }
-    } else {
-      throw new Error('Invalid content format from LlamaParse');
     }
     
     if (!textContent || textContent.trim().length === 0) {
@@ -145,43 +163,165 @@ export class LlamaParseAPI {
     
     console.log('📄 Extracted text length:', textContent.length);
 
-    // Split into paragraphs and create chunks
-    const paragraphs = textContent.split('\n\n').filter(p => p.trim().length > 20);
+    // SMART CHUNKING: Preserve tables and images integrity
     const chunks = [];
+    const sections = this.smartSplit(textContent);
     
     let currentChunk = '';
     let chunkIndex = 0;
+    let textPosition = 0; // Track position in original text
 
-    for (const paragraph of paragraphs) {
-      // If adding this paragraph would make chunk too large, save current chunk
-      if (currentChunk.length + paragraph.length > 1000 && currentChunk.length > 0) {
-        chunks.push(this.createChunkObject(currentChunk, chunkIndex));
-        currentChunk = paragraph;
+    for (const section of sections) {
+      const sectionInfo = this.analyzeSection(section);
+      
+      // Find page number for this section
+      const sectionStartPos = textContent.indexOf(section, textPosition);
+      const sectionMidPos = sectionStartPos + Math.floor(section.length / 2);
+      const pageNumber = pageMapping.get(sectionMidPos) || Math.floor(chunkIndex / 3) + 1;
+      
+      // If this is a table or image, keep it together (don't split)
+      if (sectionInfo.hasTable || sectionInfo.hasImage) {
+        // Save current chunk if exists
+        if (currentChunk.trim().length > 0) {
+          const chunkStartPos = textContent.indexOf(currentChunk, textPosition - currentChunk.length);
+          const chunkMidPos = chunkStartPos + Math.floor(currentChunk.length / 2);
+          const chunkPage = pageMapping.get(chunkMidPos) || Math.floor(chunkIndex / 3) + 1;
+          chunks.push(this.createChunkObject(currentChunk, chunkIndex, sectionInfo, chunkPage));
+          chunkIndex++;
+          currentChunk = '';
+        }
+        
+        // Add table/image as its own chunk
+        chunks.push(this.createChunkObject(section, chunkIndex, sectionInfo, pageNumber));
         chunkIndex++;
-      } else {
-        currentChunk += (currentChunk ? '\n\n' : '') + paragraph;
+      } 
+      // Regular text - use smart chunking
+      else {
+        if (currentChunk.length + section.length > 1000 && currentChunk.length > 0) {
+          const chunkStartPos = textContent.indexOf(currentChunk, textPosition - currentChunk.length);
+          const chunkMidPos = chunkStartPos + Math.floor(currentChunk.length / 2);
+          const chunkPage = pageMapping.get(chunkMidPos) || Math.floor(chunkIndex / 3) + 1;
+          chunks.push(this.createChunkObject(currentChunk, chunkIndex, sectionInfo, chunkPage));
+          currentChunk = section;
+          chunkIndex++;
+        } else {
+          currentChunk += (currentChunk ? '\n\n' : '') + section;
+        }
       }
+      
+      textPosition = sectionStartPos + section.length;
     }
 
+    // Add remaining chunk
     if (currentChunk.trim()) {
-      chunks.push(this.createChunkObject(currentChunk, chunkIndex));
+      const chunkStartPos = textContent.indexOf(currentChunk, textPosition - currentChunk.length);
+      const chunkMidPos = chunkStartPos + Math.floor(currentChunk.length / 2);
+      const chunkPage = pageMapping.get(chunkMidPos) || Math.floor(chunkIndex / 3) + 1;
+      chunks.push(this.createChunkObject(currentChunk, chunkIndex, null, chunkPage));
     }
 
+    console.log(`📊 Created ${chunks.length} chunks (tables/images preserved)`);
     return chunks;
   }
 
-  // Create chunk object with metadata
-  createChunkObject(text, index) {
-    // Simple page estimation: assume ~3 chunks per page
-    const estimatedPage = Math.floor(index / 3) + 1;
+  // Smart split that respects markdown tables and images
+  smartSplit(text) {
+    const sections = [];
+    const lines = text.split('\n');
+    let currentSection = '';
+    let inTable = false;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Detect table boundaries
+      if (line.includes('|') && line.trim().startsWith('|')) {
+        if (!inTable) {
+          // Table starting - save previous section
+          if (currentSection.trim()) {
+            sections.push(currentSection.trim());
+            currentSection = '';
+          }
+          inTable = true;
+        }
+        currentSection += line + '\n';
+      } 
+      // Detect end of table
+      else if (inTable && line.trim().length === 0) {
+        inTable = false;
+        sections.push(currentSection.trim());
+        currentSection = '';
+      }
+      // Detect image descriptions
+      else if (line.match(/\[Image:/i) || line.match(/\[Diagram:/i) || line.match(/\[Chart:/i)) {
+        // Save previous section
+        if (currentSection.trim()) {
+          sections.push(currentSection.trim());
+        }
+        currentSection = line + '\n';
+        // Look ahead for continuation
+        let j = i + 1;
+        while (j < lines.length && !lines[j].trim().match(/^\[/) && lines[j].trim().length > 0) {
+          currentSection += lines[j] + '\n';
+          j++;
+        }
+        sections.push(currentSection.trim());
+        currentSection = '';
+        i = j - 1;
+      }
+      // Regular content
+      else {
+        currentSection += line + '\n';
+        // Split on double newlines (paragraphs) if not in special content
+        if (line.trim().length === 0 && currentSection.trim().length > 20) {
+          sections.push(currentSection.trim());
+          currentSection = '';
+        }
+      }
+    }
+    
+    if (currentSection.trim()) {
+      sections.push(currentSection.trim());
+    }
+    
+    return sections.filter(s => s.length > 20);
+  }
+
+  // Analyze section to detect content type
+  analyzeSection(text) {
+    const hasTable = text.includes('|') && text.split('\n').some(line => 
+      line.trim().startsWith('|') && line.includes('|')
+    );
+    
+    const hasImage = /\[Image:/i.test(text) || /\[Diagram:/i.test(text) || /\[Chart:/i.test(text);
+    
+    return {
+      hasTable,
+      hasImage,
+      contentType: hasTable ? 'table' : hasImage ? 'image' : 'text'
+    };
+  }
+
+  // Create chunk object with metadata - ENHANCED with content type and REAL page numbers
+  createChunkObject(text, index, sectionInfo = null, pageNumber = null) {
+    // Use provided page number or fallback to estimation
+    const actualPage = pageNumber || Math.floor(index / 3) + 1;
+    
+    // Auto-detect content type if not provided
+    if (!sectionInfo) {
+      sectionInfo = this.analyzeSection(text);
+    }
     
     return {
       text: text.trim(),
       metadata: {
-        page_number: estimatedPage,
+        page_number: actualPage,      // ✅ REAL page number from LlamaParse!
         chunk_index: index,
         section: `Section ${index + 1}`,
-        chunk_id: `chunk_${Date.now()}_${index}`
+        chunk_id: `chunk_${Date.now()}_${index}`,
+        content_type: sectionInfo.contentType,
+        has_table: sectionInfo.hasTable,
+        has_image: sectionInfo.hasImage
       }
     };
   }

@@ -27,20 +27,28 @@ export class VectorStore {
     }
   }
 
-  // Store document chunks in ChromaDB
+  // Store document chunks in ChromaDB - ENHANCED with content type metadata
   async storeDocuments(chunks, filename) {
     try {
       if (!this.collection) await this.initialize();
       
       console.log(`💾 Storing ${chunks.length} chunks from "${filename}"`);
       
-      // Prepare data for ChromaDB
+      // Count special content types
+      const tables = chunks.filter(c => c.metadata.has_table).length;
+      const images = chunks.filter(c => c.metadata.has_image).length;
+      console.log(`   📊 Tables: ${tables}, 🖼️  Images: ${images}`);
+      
+      // Prepare data for ChromaDB with enhanced metadata
       const documents = chunks.map(chunk => chunk.text);
       const metadatas = chunks.map((chunk, index) => ({
         page: chunk.metadata.page_number,
         filename: filename,
         chunk_id: `${filename}_${index}`,
         section: chunk.metadata.section,
+        content_type: chunk.metadata.content_type || 'text',  // NEW
+        has_table: chunk.metadata.has_table || false,         // NEW
+        has_image: chunk.metadata.has_image || false,         // NEW
         created_at: new Date().toISOString()
       }));
       const ids = chunks.map((_, index) => `${filename}_${Date.now()}_${index}`);
@@ -57,7 +65,9 @@ export class VectorStore {
       return {
         success: true,
         chunks_stored: chunks.length,
-        filename: filename
+        filename: filename,
+        tables_count: tables,
+        images_count: images
       };
 
     } catch (error) {
@@ -66,7 +76,7 @@ export class VectorStore {
     }
   }
 
-  // Search for relevant chunks
+  // Search for relevant chunks - ENHANCED with content type logging
   async searchRelevant(question, limit = 5) {
     try {
       if (!this.collection) await this.initialize();
@@ -92,7 +102,11 @@ export class VectorStore {
       }
 
       const pages = [...new Set(formattedResults.map(r => r.metadata.page))];
+      const tableChunks = formattedResults.filter(r => r.metadata.has_table).length;
+      const imageChunks = formattedResults.filter(r => r.metadata.has_image).length;
+      
       console.log(`📋 Found ${formattedResults.length} chunks from pages: ${pages.join(', ')}`);
+      console.log(`   📊 Tables: ${tableChunks}, 🖼️  Images: ${imageChunks}`);
       
       return formattedResults;
 

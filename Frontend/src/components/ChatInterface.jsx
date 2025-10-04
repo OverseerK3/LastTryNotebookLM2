@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 
 const ChatInterface = ({ onCitationClick }) => {
   const [messages, setMessages] = useState([]);
@@ -21,7 +22,7 @@ const ChatInterface = ({ onCitationClick }) => {
     setIsLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:3000/api/chat', {
+      const response = await axios.post(`${API_BASE_URL}/api/chat`, {
         question: inputValue,
       });
 
